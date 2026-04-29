@@ -51,9 +51,8 @@ docker compose up -d          # PostgreSQL + pgAdmin
 ### Backend
 ```bash
 cd backend
-python -m venv .venv
-.venv/Scripts/activate        # Windows
-pip install -r requirements.txt
+uv sync
+source .venv/bin/activate
 alembic upgrade head          # run migrations
 uvicorn app.main:app --reload --port 8000
 ```
