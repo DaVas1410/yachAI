@@ -43,6 +43,20 @@ HuggingFace (CPU, ~90MB)
 
 ## Development Commands
 
+### System dependencies (Fedora/Linux)
+
+Install once before running the backend:
+
+```bash
+sudo dnf install -y \
+  tesseract \
+  tesseract-langpack-spa \
+  mesa-libGL \
+  mesa-libEGL
+```
+
+`mesa-libGL` and `mesa-libEGL` are required by `opencv-python-headless` at runtime on Fedora. Do not install `python3-opencv` — OpenCV is managed via `uv sync` from PyPI.
+
 ### Start infrastructure
 ```bash
 docker compose up -d          # PostgreSQL + pgAdmin
