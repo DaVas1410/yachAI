@@ -11,7 +11,6 @@ class QueryMetric(Base):
     __tablename__ = "query_metrics"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
     query: Mapped[str] = mapped_column(Text)
     latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     retrieval_score: Mapped[float | None] = mapped_column(Float, nullable=True)
