@@ -2,17 +2,15 @@ import asyncio
 import json
 import logging
 import time
-import uuid
 from typing import AsyncIterator
 
 import httpx
 from sentence_transformers import CrossEncoder
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.chunk import Chunk
-from app.models.message import Message
 from app.services.ingestion import get_embedding
 
 logger = logging.getLogger(__name__)
@@ -21,7 +19,6 @@ _reranker: CrossEncoder | None = None
 
 TOP_K_RETRIEVE = 20
 TOP_K_RERANK = 5
-HISTORY_TURNS = 10
 
 
 def _get_reranker() -> CrossEncoder:
@@ -58,41 +55,23 @@ def _rerank(query: str, chunks: list[Chunk]) -> list[tuple[Chunk, float]]:
     return ranked[:TOP_K_RERANK]
 
 
-async def _get_history(db: AsyncSession, user_id: uuid.UUID) -> list[Message]:
-    result = await db.execute(
-        select(Message)
-        .where(Message.user_id == user_id)
-        .order_by(Message.created_at.desc())
-        .limit(HISTORY_TURNS * 2)
-    )
-    messages = result.scalars().all()
-    return list(reversed(messages))
-
-
-def _build_prompt(query: str, context_chunks: list[str], history: list[Message]) -> list[dict]:
+def _build_prompt(query: str, context_chunks: list[str]) -> list[dict]:
     system = (
         "Eres un asistente universitario de Yachay Tech (UITEY), Ecuador. "
         "Responde únicamente en español usando la información del contexto proporcionado. "
         "Si la respuesta no está en el contexto, indícalo claramente. "
         "Sé preciso, formal y útil."
     )
-    messages = [{"role": "system", "content": system}]
-
-    for msg in history:
-        messages.append({"role": msg.role, "content": msg.content})
-
     context_text = "\n\n---\n\n".join(context_chunks)
-    messages.append({
-        "role": "user",
-        "content": f"Contexto:\n{context_text}\n\nPregunta: {query}",
-    })
-    return messages
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": f"Contexto:\n{context_text}\n\nPregunta: {query}"},
+    ]
 
 
 async def stream_response(
     db: AsyncSession,
     query: str,
-    user_id: uuid.UUID,
 ) -> AsyncIterator[dict]:
     t0 = time.perf_counter()
 
@@ -115,8 +94,7 @@ async def stream_response(
             "z": top_chunks[0].umap_z,
         }
 
-    history = await _get_history(db, user_id)
-    messages = _build_prompt(query, [c.content for c in top_chunks], history)
+    messages = _build_prompt(query, [c.content for c in top_chunks])
 
     full_response = ""
     tokens_out = 0
@@ -152,17 +130,10 @@ async def stream_response(
     latency_ms = (time.perf_counter() - t0) * 1000
 
     try:
-        user_msg = Message(user_id=user_id, role="user", content=query)
-        assistant_msg = Message(user_id=user_id, role="assistant", content=full_response)
-        db.add(user_msg)
-        db.add(assistant_msg)
-        await db.commit()
-
         from app.services.metrics import log_query
         metric = await log_query(
             db,
             query=query,
-            user_id=user_id,
             latency_ms=latency_ms,
             rerank_score=top_score,
             tokens_out=tokens_out,
@@ -171,8 +142,8 @@ async def stream_response(
             umap_qz=umap_coords["z"] if umap_coords else None,
         )
     except Exception as e:
-        logger.error(f"Error al guardar mensajes o métricas: {e}")
-        yield {"type": "error", "content": "Error al guardar el historial de conversación."}
+        logger.error(f"Error al guardar métricas: {e}")
+        yield {"type": "error", "content": "Error al guardar métricas."}
         return
 
     yield {

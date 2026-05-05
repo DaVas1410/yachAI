@@ -11,7 +11,6 @@ async def log_query(
     db: AsyncSession,
     *,
     query: str,
-    user_id: uuid.UUID | None = None,
     latency_ms: float | None = None,
     retrieval_score: float | None = None,
     rerank_score: float | None = None,
@@ -22,7 +21,6 @@ async def log_query(
     umap_qz: float | None = None,
 ) -> QueryMetric:
     metric = QueryMetric(
-        user_id=user_id,
         query=query,
         latency_ms=latency_ms,
         retrieval_score=retrieval_score,
