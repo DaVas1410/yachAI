@@ -1,21 +1,15 @@
-export function saveAuth(token: string, isAdmin: boolean) {
-  localStorage.setItem("token", token)
-  localStorage.setItem("is_admin", String(isAdmin))
+export function saveAdminToken(token: string) {
+  localStorage.setItem("admin_token", token)
 }
 
-export function clearAuth() {
-  localStorage.removeItem("token")
-  localStorage.removeItem("is_admin")
+export function clearAdminToken() {
+  localStorage.removeItem("admin_token")
 }
 
-export function getToken() {
-  return localStorage.getItem("token")
+export function getAdminToken(): string | null {
+  return localStorage.getItem("admin_token")
 }
 
-export function isAdmin() {
-  return localStorage.getItem("is_admin") === "true"
-}
-
-export function isLoggedIn() {
-  return !!localStorage.getItem("token")
+export function isAdmin(): boolean {
+  return !!localStorage.getItem("admin_token")
 }
