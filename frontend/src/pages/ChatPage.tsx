@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { getToken, clearAuth, isAdmin } from "@/lib/auth"
+import { isAdmin } from "@/lib/auth"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -12,7 +12,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
@@ -20,7 +19,6 @@ import {
   BarChart2Icon,
   BotIcon,
   Loader2Icon,
-  LogOutIcon,
   SendIcon,
   ShieldIcon,
   SparklesIcon,
@@ -48,25 +46,8 @@ export default function ChatPage() {
   const admin = isAdmin()
 
   useEffect(() => {
-    const token = getToken()
-    if (!token) {
-      navigate("/")
-      return
-    }
-
-    api.get("/chat/history").then(({ data }) => {
-      setMessages(
-        data.map((m: { role: string; content: string }) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        }))
-      )
-    })
-
     const ws = new WebSocket("ws://localhost:8000/chat/ws")
     wsRef.current = ws
-
-    ws.onopen = () => ws.send(JSON.stringify({ token }))
 
     ws.onmessage = (evt) => {
       const data = JSON.parse(evt.data)
@@ -102,7 +83,7 @@ export default function ChatPage() {
     }
 
     return () => ws.close()
-  }, [navigate])
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -147,12 +128,6 @@ export default function ChatPage() {
     } catch {
       toast.error("No se pudo enviar la valoración.")
     }
-  }
-
-  function logout() {
-    wsRef.current?.close()
-    clearAuth()
-    navigate("/")
   }
 
   return (
@@ -201,11 +176,6 @@ export default function ChatPage() {
                   Administración
                 </DropdownMenuItem>
               )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onClick={logout}>
-                <LogOutIcon className="mr-2 size-4" />
-                Cerrar sesión
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
