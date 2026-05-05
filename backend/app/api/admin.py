@@ -8,7 +8,6 @@ from app.api.deps import get_admin
 from app.core.database import get_db
 from app.models.chunk import Chunk
 from app.models.document import Document
-from app.models.user import User
 from app.services.ingestion import delete_document, ingest_file, recompute_umap
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -89,36 +88,3 @@ async def remove_document(
     if not ok:
         raise HTTPException(status_code=404, detail="Documento no encontrado.")
     return {"ok": True}
-
-
-@router.get("/users")
-async def list_users(
-    _: dict = Depends(get_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(User).order_by(User.created_at.desc()))
-    users = result.scalars().all()
-    return [
-        {
-            "id": str(u.id),
-            "username": u.username,
-            "email": u.email,
-            "is_active": u.is_active,
-            "created_at": u.created_at.isoformat(),
-        }
-        for u in users
-    ]
-
-
-@router.post("/users/{user_id}/toggle")
-async def toggle_user(
-    user_id: uuid.UUID,
-    _: dict = Depends(get_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    user = await db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-    user.is_active = not user.is_active
-    await db.commit()
-    return {"id": str(user.id), "is_active": user.is_active}

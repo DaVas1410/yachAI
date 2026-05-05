@@ -5,10 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_admin, get_current_user, get_verified_token
 from app.core.database import get_db
 from app.models.chunk import Chunk
-from app.models.user import User
 from app.services.metrics import get_stats, set_feedback
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -20,19 +18,12 @@ class FeedbackRequest(BaseModel):
 
 
 @router.get("/stats")
-async def stats(
-    _: dict = Depends(get_verified_token),
-    db: AsyncSession = Depends(get_db),
-):
+async def stats(db: AsyncSession = Depends(get_db)):
     return await get_stats(db)
 
 
 @router.post("/feedback")
-async def feedback(
-    body: FeedbackRequest,
-    _: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
+async def feedback(body: FeedbackRequest, db: AsyncSession = Depends(get_db)):
     if body.vote not in ("up", "down"):
         raise HTTPException(status_code=422, detail="El voto debe ser 'up' o 'down'.")
     ok = await set_feedback(db, body.metric_id, body.vote)
@@ -42,10 +33,7 @@ async def feedback(
 
 
 @router.get("/embeddings")
-async def embeddings(
-    _: dict = Depends(get_verified_token),
-    db: AsyncSession = Depends(get_db),
-):
+async def embeddings(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Chunk.id, Chunk.umap_x, Chunk.umap_y, Chunk.umap_z, Chunk.document_id)
         .where(Chunk.umap_x.is_not(None))
