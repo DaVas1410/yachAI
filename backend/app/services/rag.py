@@ -192,6 +192,10 @@ async def stream_response(
 ) -> AsyncIterator[dict]:
     t0 = time.perf_counter()
 
+    notice = _check_sensitivity(query)
+    if notice:
+        yield {"type": "notice", "content": notice}
+
     query_emb = await get_embedding(query)
     candidates = await _retrieve(db, query, query_emb)
 
@@ -202,6 +206,21 @@ async def stream_response(
     ranked = await asyncio.to_thread(_rerank, query, candidates)
     top_chunks = [c for c, _ in ranked]
     top_score = float(ranked[0][1]) if ranked else None
+
+    if top_score is None or top_score < MIN_RERANK_SCORE:
+        yield {
+            "type": "chunk",
+            "text": "No encontré información sobre esto en los documentos institucionales disponibles.",
+        }
+        yield {
+            "type": "done",
+            "metric_id": None,
+            "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
+            "sources": [],
+            "chunks": [],
+            "query_umap": None,
+        }
+        return
 
     umap_coords = None
     if top_chunks and top_chunks[0].umap_x is not None:
