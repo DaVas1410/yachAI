@@ -103,31 +103,43 @@ async def ingest_file(
     await db.refresh(doc)
 
     try:
-        raw_text = await asyncio.to_thread(extract_text, file_bytes)
-        chunks_text = _splitter.split_text(raw_text)
+        pages = await asyncio.to_thread(extract_text, file_bytes)
+        non_empty_pages = [(page_num, t) for page_num, t in enumerate(pages, 1) if t.strip()]
 
-        if not chunks_text:
+        if not non_empty_pages:
+            raise ValueError("No se pudo extraer texto del archivo.")
+
+        # Build flat list of (page_number, chunk_text) by splitting each page separately.
+        page_chunks: list[tuple[int, str]] = []
+        for page_num, page_text in non_empty_pages:
+            for chunk_text in _splitter.split_text(page_text):
+                page_chunks.append((page_num, chunk_text))
+
+        if not page_chunks:
             raise ValueError("No se pudo extraer texto del archivo.")
 
         batch_size = 16
         chunks: list[Chunk] = []
-        for i in range(0, len(chunks_text), batch_size):
-            batch = chunks_text[i : i + batch_size]
+        texts_only = [t for _, t in page_chunks]
+        for i in range(0, len(texts_only), batch_size):
+            batch = texts_only[i : i + batch_size]
             embeddings = await _embed(batch)
             if len(embeddings) != len(batch):
                 raise ValueError(f"Conteo de embeddings no coincide: esperado {len(batch)}, recibido {len(embeddings)}")
-            for j, (text, emb) in enumerate(zip(batch, embeddings)):
+            for j, (chunk_text, emb) in enumerate(zip(batch, embeddings)):
+                page_num, _ = page_chunks[i + j]
                 chunks.append(
                     Chunk(
                         document_id=doc.id,
                         chunk_index=i + j,
-                        content=text,
+                        page_number=page_num,
+                        content=chunk_text,
                         embedding=emb,
                     )
                 )
 
         db.add_all(chunks)
-        doc.page_count = len(chunks_text)
+        doc.page_count = len(pages)
         doc.status = "ingested"
         await db.commit()
 

@@ -29,7 +29,8 @@ def _preprocess_image(pix: pymupdf.Pixmap) -> np.ndarray:
     return denoised
 
 
-def extract_text(file_bytes: bytes) -> str:
+def extract_text(file_bytes: bytes) -> list[str]:
+    """Return one text string per PDF page (empty strings for unreadable pages)."""
     doc = pymupdf.open(stream=file_bytes, filetype="pdf")
     pages: list[str] = []
     try:
@@ -47,7 +48,7 @@ def extract_text(file_bytes: bytes) -> str:
                 pages.append(ocr_text.strip())
             except Exception as e:
                 logger.warning(f"Error procesando página {page.number}: {e}")
-                continue
+                pages.append("")
     finally:
         doc.close()
-    return "\n\n".join(p for p in pages if p)
+    return pages

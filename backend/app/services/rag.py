@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.chunk import Chunk
+from app.models.document import Document
 from app.services.ingestion import get_embedding
 
 logger = logging.getLogger(__name__)
@@ -190,10 +191,24 @@ async def stream_response(
         yield {"type": "error", "content": "Error al guardar métricas."}
         return
 
+    sources = []
+    seen_sources: set[tuple] = set()
+    for c in top_chunks:
+        key = (c.document_id, c.page_number)
+        if key in seen_sources:
+            continue
+        seen_sources.add(key)
+        doc = await db.get(Document, c.document_id)
+        sources.append({
+            "filename": doc.filename if doc else "Documento desconocido",
+            "page": c.page_number,
+        })
+
     yield {
         "type": "done",
         "metric_id": str(metric.id),
         "latency_ms": round(latency_ms, 1),
+        "sources": sources,
         "chunks": [
             {
                 "id": str(c.id),

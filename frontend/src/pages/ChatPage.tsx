@@ -28,11 +28,17 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+interface Source {
+  filename: string
+  page: number | null
+}
+
 interface Message {
   role: "user" | "assistant"
   content: string
   metric_id?: string
   feedback?: "up" | "down"
+  sources?: Source[]
 }
 
 export default function ChatPage() {
@@ -64,21 +70,23 @@ export default function ChatPage() {
         })
       } else if (data.type === "done") {
         setStreaming(false)
-        if (data.metric_id) {
-          setMessages((prev) => {
-            const last = prev[prev.length - 1]
-            if (last?.role === "assistant") {
-              return [
-                ...prev.slice(0, -1),
-                { ...last, metric_id: data.metric_id },
-              ]
-            }
-            return prev
-          })
-        }
+        setMessages((prev) => {
+          const last = prev[prev.length - 1]
+          if (last?.role === "assistant") {
+            return [
+              ...prev.slice(0, -1),
+              {
+                ...last,
+                metric_id: data.metric_id ?? last.metric_id,
+                sources: data.sources ?? last.sources,
+              },
+            ]
+          }
+          return prev
+        })
       } else if (data.type === "error") {
         setStreaming(false)
-        toast.error("Error al procesar la consulta.")
+        toast.error(data.content ?? "Error al procesar la consulta.")
       }
     }
 
@@ -255,6 +263,25 @@ export default function ChatPage() {
                 >
                   {m.content}
                 </div>
+
+                {/* Sources */}
+                {m.role === "assistant" && m.sources && m.sources.length > 0 && !streaming && (
+                  <div className="flex flex-wrap gap-1.5 max-w-prose">
+                    {m.sources.map((s, si) => (
+                      <span
+                        key={si}
+                        className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-foreground/8"
+                      >
+                        <span className="truncate max-w-[180px]" title={s.filename}>
+                          {s.filename.replace(/\.pdf$/i, "")}
+                        </span>
+                        {s.page != null && (
+                          <span className="shrink-0 font-medium text-foreground/60">p.{s.page}</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {/* Feedback */}
                 {m.role === "assistant" && m.metric_id && !streaming && (

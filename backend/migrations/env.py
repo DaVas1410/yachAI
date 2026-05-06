@@ -9,10 +9,8 @@ from app.core.config import settings
 from app.core.database import Base
 
 # import all models so Alembic sees them
-import app.models.user  # noqa: F401
 import app.models.document  # noqa: F401
 import app.models.chunk  # noqa: F401
-import app.models.message  # noqa: F401
 import app.models.metric  # noqa: F401
 
 config = context.config
