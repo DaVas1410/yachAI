@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import time
 from typing import AsyncIterator
 
@@ -79,7 +80,7 @@ _SUPPORT_MESSAGE = (
 def _check_sensitivity(query: str) -> str | None:
     q = query.lower()
     for keywords in _SENSITIVE_KEYWORDS.values():
-        if any(kw in q for kw in keywords):
+        if any(re.search(r"\b" + re.escape(kw) + r"\b", q) for kw in keywords):
             return _SUPPORT_MESSAGE
     return None
 
