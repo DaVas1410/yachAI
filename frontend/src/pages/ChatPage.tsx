@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 import {
   BarChart2Icon,
   BotIcon,
+  HeartHandshakeIcon,
   Loader2Icon,
   SendIcon,
   ShieldIcon,
@@ -39,6 +40,7 @@ interface Message {
   metric_id?: string
   feedback?: "up" | "down"
   sources?: Source[]
+  notice?: string
 }
 
 export default function ChatPage() {
@@ -83,6 +85,14 @@ export default function ChatPage() {
             ]
           }
           return prev
+        })
+      } else if (data.type === "notice") {
+        setMessages((prev) => {
+          const last = prev[prev.length - 1]
+          if (last?.role === "assistant") {
+            return [...prev.slice(0, -1), { ...last, notice: data.content }]
+          }
+          return [...prev, { role: "assistant", content: "", notice: data.content }]
         })
       } else if (data.type === "error") {
         setStreaming(false)
@@ -253,6 +263,12 @@ export default function ChatPage() {
                   m.role === "user" ? "items-end" : "items-start"
                 )}
               >
+                {m.role === "assistant" && m.notice && (
+                  <div className="flex items-start gap-2 max-w-prose rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2.5 text-sm text-amber-900 dark:text-amber-100">
+                    <HeartHandshakeIcon className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                    <span className="whitespace-pre-wrap leading-relaxed">{m.notice}</span>
+                  </div>
+                )}
                 <div
                   className={cn(
                     "rounded-2xl px-4 py-2.5 max-w-prose text-sm leading-relaxed whitespace-pre-wrap",
