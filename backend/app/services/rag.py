@@ -17,20 +17,21 @@ logger = logging.getLogger(__name__)
 
 _reranker: CrossEncoder | None = None
 
-TOP_K_RETRIEVE = 20
+TOP_K_RETRIEVE = 40
 TOP_K_RERANK = 5
 
 
 def _get_reranker() -> CrossEncoder:
     global _reranker
     if _reranker is None:
-        _reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        _reranker = CrossEncoder("BAAI/bge-reranker-base")
     return _reranker
 
 
-async def _retrieve(db: AsyncSession, query_emb: list[float]) -> list[Chunk]:
+async def _retrieve(db: AsyncSession, query: str, query_emb: list[float]) -> list[Chunk]:
     emb_str = "[" + ",".join(str(x) for x in query_emb) + "]"
-    result = await db.execute(
+
+    vector_result = await db.execute(
         text(
             "SELECT id FROM chunks "
             "ORDER BY embedding <=> CAST(:emb AS vector) "
@@ -38,9 +39,52 @@ async def _retrieve(db: AsyncSession, query_emb: list[float]) -> list[Chunk]:
         ),
         {"emb": emb_str, "k": TOP_K_RETRIEVE},
     )
-    ids = [row[0] for row in result.all()]
+    vector_ids = {row[0] for row in vector_result.all()}
+
+    bm25_result = await db.execute(
+        text(
+            "SELECT id FROM chunks "
+            "WHERE to_tsvector('spanish', content) @@ "
+            "  to_tsquery('spanish', (SELECT string_agg(lexeme, ' | ') FROM unnest(to_tsvector('spanish', :q)))) "
+            "ORDER BY ts_rank_cd("
+            "  to_tsvector('spanish', content),"
+            "  to_tsquery('spanish', (SELECT string_agg(lexeme, ' | ') FROM unnest(to_tsvector('spanish', :q))))"
+            ") DESC "
+            "LIMIT :k"
+        ),
+        {"q": query, "k": TOP_K_RETRIEVE},
+    )
+    bm25_ids = {row[0] for row in bm25_result.all()}
+
+    # Document-level pass: find documents whose filenames match query terms, then
+    # inject their best chunks by vector similarity. Helps OCR'd docs whose chunk
+    # embeddings are too noisy to surface via normal retrieval.
+    doc_result = await db.execute(
+        text(
+            "SELECT id FROM documents "
+            "WHERE to_tsvector('spanish', filename) @@ "
+            "  to_tsquery('spanish', (SELECT string_agg(lexeme, ' | ') FROM unnest(to_tsvector('spanish', :q)))) "
+            "LIMIT 10"
+        ),
+        {"q": query},
+    )
+    matched_doc_ids = [row[0] for row in doc_result.all()]
+    doc_chunk_ids: set = set()
+    for doc_id in matched_doc_ids:
+        per_doc_result = await db.execute(
+            text(
+                "SELECT id FROM chunks "
+                "WHERE document_id = CAST(:doc_id AS uuid) "
+                "ORDER BY embedding <=> CAST(:emb AS vector) "
+                "LIMIT 8"
+            ),
+            {"doc_id": str(doc_id), "emb": emb_str},
+        )
+        doc_chunk_ids.update(row[0] for row in per_doc_result.all())
+
+    combined_ids = list(vector_ids | bm25_ids | doc_chunk_ids)
     chunks = []
-    for chunk_id in ids:
+    for chunk_id in combined_ids:
         chunk = await db.get(Chunk, chunk_id)
         if chunk:
             chunks.append(chunk)
@@ -76,7 +120,7 @@ async def stream_response(
     t0 = time.perf_counter()
 
     query_emb = await get_embedding(query)
-    candidates = await _retrieve(db, query_emb)
+    candidates = await _retrieve(db, query, query_emb)
 
     if not candidates:
         yield {"type": "error", "content": "No encontré documentos relevantes para tu consulta."}
@@ -104,7 +148,7 @@ async def stream_response(
             async with client.stream(
                 "POST",
                 f"{settings.ollama_base_url}/api/chat",
-                json={"model": settings.chat_model, "messages": messages, "stream": True},
+                json={"model": settings.chat_model, "messages": messages, "stream": True, "think": False},
             ) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
