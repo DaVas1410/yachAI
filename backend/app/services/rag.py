@@ -21,6 +21,68 @@ _reranker: CrossEncoder | None = None
 TOP_K_RETRIEVE = 40
 TOP_K_RERANK = 5
 
+MIN_RERANK_SCORE = 0.05
+
+_SENSITIVE_KEYWORDS: dict[str, list[str]] = {
+    "violencia_genero": [
+        "violencia de género", "violencia doméstica", "violencia sexual",
+        "violencia intrafamiliar", "violencia psicológica", "violencia física",
+        "abuso sexual", "abuso físico", "abuso emocional", "abuso de pareja",
+        "maltrato", "maltrato físico", "maltrato psicológico",
+        "feminicidio", "femicidio", "agresión sexual", "agresión de pareja",
+        "golpes", "me golpea", "me golpeó", "me lastima", "me hiere",
+        "pareja violenta", "relación abusiva", "control abusivo",
+    ],
+    "acoso": [
+        "acoso", "hostigamiento", "acoso sexual", "acoso laboral",
+        "acoso escolar", "acoso universitario", "bullying", "ciberbullying",
+        "acoso en línea", "acoso digital", "acoso por redes",
+        "tocamientos indebidos", "comentarios inapropiados",
+        "insinuaciones sexuales", "proposiciones indecentes",
+        "me acosan", "me acosaron", "ambiente hostil",
+        "persecución", "intimidación", "amenazas", "chantaje",
+    ],
+    "salud_mental": [
+        "suicidio", "suicidarme", "quitarme la vida", "no quiero vivir",
+        "quiero morir", "quiero desaparecer", "pensamientos de muerte",
+        "hacerme daño", "autolesión", "autolesionarme", "cortarme",
+        "depresión", "depresión severa", "crisis emocional", "crisis de pánico",
+        "ataque de pánico", "angustia", "desesperanza", "desesperación",
+        "no puedo más", "ya no aguanto", "me siento solo", "me siento sola",
+        "ansiedad severa", "trastorno emocional", "colapso emocional",
+        "burnout", "agotamiento extremo", "pensamientos negativos",
+        "me quiero rendir", "no vale la pena seguir",
+    ],
+    "discriminacion": [
+        "discriminación", "discriminado", "discriminada", "discriminan", "discriminar",
+        "racismo", "racista", "xenofobia", "xenófobo",
+        "homofobia", "homofóbico", "transfobia", "transfóbico",
+        "odio por ser", "me odian por", "me rechazan por",
+        "insultos racistas", "insultos homofóbicos",
+        "exclusión", "marginación", "trato desigual",
+        "me tratan diferente", "prejuicio", "estigma",
+        "aporofobia", "discapacitismo", "ableismo",
+    ],
+}
+
+_SUPPORT_MESSAGE = (
+    "Este tema es importante y merece atención especializada. "
+    "Si necesitas apoyo, puedes acudir a:\n\n"
+    "• **Departamento de Bienestar Estudiantil de Yachay Tech** — [CONTACTO POR CONFIRMAR]\n"
+    "• **Federaciones Estudiantiles de Yachay Tech** — [CONTACTO POR CONFIRMAR]\n"
+    "• **Línea de ayuda en crisis (Ecuador):** 1800-4VIDAS (1800-48432)\n"
+    "• **ECU 911** (emergencias): 911\n\n"
+    "El asistente también buscará información institucional relevante a continuación."
+)
+
+
+def _check_sensitivity(query: str) -> str | None:
+    q = query.lower()
+    for keywords in _SENSITIVE_KEYWORDS.values():
+        if any(kw in q for kw in keywords):
+            return _SUPPORT_MESSAGE
+    return None
+
 
 def _get_reranker() -> CrossEncoder:
     global _reranker
@@ -102,10 +164,19 @@ def _rerank(query: str, chunks: list[Chunk]) -> list[tuple[Chunk, float]]:
 
 def _build_prompt(query: str, context_chunks: list[str]) -> list[dict]:
     system = (
-        "Eres un asistente universitario de Yachay Tech (UITEY), Ecuador. "
-        "Responde únicamente en español usando la información del contexto proporcionado. "
-        "Si la respuesta no está en el contexto, indícalo claramente. "
-        "Sé preciso, formal y útil."
+        "Eres un asistente universitario de Yachay Tech (UITEY), Ecuador.\n"
+        "Responde ÚNICAMENTE usando la información del contexto proporcionado a continuación.\n\n"
+        "Reglas estrictas:\n"
+        "1. Si la respuesta no está en el contexto, di exactamente: "
+        "\"No encontré información sobre esto en los documentos institucionales disponibles.\"\n"
+        "2. Nunca inventes artículos, fechas, nombres, porcentajes ni procedimientos que no "
+        "aparezcan textualmente en el contexto.\n"
+        "3. No uses conocimiento general fuera del contexto. Si el contexto es insuficiente, "
+        "aplica la regla 1.\n"
+        "4. Cita el contenido relevante con precisión. No parafrasees de forma que cambie el "
+        "significado legal o normativo.\n"
+        "5. Si el contexto contiene información parcial, preséntala como tal e indica qué no "
+        "encontraste."
     )
     context_text = "\n\n---\n\n".join(context_chunks)
     return [
