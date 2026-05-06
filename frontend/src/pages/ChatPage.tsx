@@ -269,16 +269,18 @@ export default function ChatPage() {
                     <span className="whitespace-pre-wrap leading-relaxed">{m.notice}</span>
                   </div>
                 )}
-                <div
-                  className={cn(
-                    "rounded-2xl px-4 py-2.5 max-w-prose text-sm leading-relaxed whitespace-pre-wrap",
-                    m.role === "user"
-                      ? "bg-primary text-primary-foreground rounded-tr-sm"
-                      : "bg-card ring-1 ring-foreground/8 text-foreground rounded-tl-sm"
-                  )}
-                >
-                  {m.content}
-                </div>
+                {m.content && (
+                  <div
+                    className={cn(
+                      "rounded-2xl px-4 py-2.5 max-w-prose text-sm leading-relaxed whitespace-pre-wrap",
+                      m.role === "user"
+                        ? "bg-primary text-primary-foreground rounded-tr-sm"
+                        : "bg-card ring-1 ring-foreground/8 text-foreground rounded-tl-sm"
+                    )}
+                  >
+                    {m.content}
+                  </div>
+                )}
 
                 {/* Sources */}
                 {m.role === "assistant" && m.sources && m.sources.length > 0 && !streaming && (

@@ -32,6 +32,16 @@ def test_sensitivity_institutional_query_returns_none():
     result = _check_sensitivity("¿cómo solicitar una beca estudiantil?")
     assert result is None
 
+def test_sensitivity_no_false_positive_substring():
+    # "fracaso" contains "aso" but not the keyword "acoso" as a word
+    result = _check_sensitivity("el fracaso académico me preocupa")
+    assert result is None
+
+def test_sensitivity_word_boundary_matches_whole_word():
+    # "acoso escolar" should still match (acoso is a complete word here)
+    result = _check_sensitivity("hay acoso escolar en mi clase")
+    assert result == _SUPPORT_MESSAGE
+
 
 # ── _build_prompt ────────────────────────────────────────────────────────────
 
