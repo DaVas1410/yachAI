@@ -107,8 +107,8 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  function send() {
-    const text = input.trim()
+  function send(overrideText?: string) {
+    const text = (overrideText ?? input).trim()
     if (!text || streaming || !wsRef.current) return
     setMessages((prev) => [...prev, { role: "user", content: text }])
     wsRef.current.send(JSON.stringify({ query: text }))
@@ -223,10 +223,7 @@ export default function ChatPage() {
                 ].map((q) => (
                   <button
                     key={q}
-                    onClick={() => {
-                      setInput(q)
-                      textareaRef.current?.focus()
-                    }}
+                    onClick={() => send(q)}
                     className="text-left px-3 py-2.5 rounded-xl border bg-card hover:bg-muted/60 transition-colors text-xs text-muted-foreground hover:text-foreground"
                   >
                     {q}
@@ -387,7 +384,7 @@ export default function ChatPage() {
                 render={
                   <Button
                     size="icon-sm"
-                    onClick={send}
+                    onClick={() => send()}
                     disabled={streaming || !input.trim()}
                     className="shrink-0 rounded-lg"
                   />
