@@ -18,9 +18,9 @@ _RATE_WINDOW = 60.0
 _ip_buckets: dict[str, deque] = defaultdict(deque)
 
 
-def _check_rate_limit(ip: str) -> bool:
+def _check_rate_limit(ip_buckets: dict, ip: str) -> bool:
     now = time.monotonic()
-    bucket = _ip_buckets[ip]
+    bucket = ip_buckets[ip]
     while bucket and bucket[0] < now - _RATE_WINDOW:
         bucket.popleft()
     if len(bucket) >= _RATE_LIMIT:
@@ -49,7 +49,7 @@ async def chat_ws(websocket: WebSocket):
                 await websocket.send_json({"type": "error", "content": "La consulta está vacía."})
                 continue
 
-            if not _check_rate_limit(client_ip):
+            if not _check_rate_limit(_ip_buckets, client_ip):
                 await websocket.send_json({
                     "type": "error",
                     "content": "Demasiadas consultas. Espera un momento antes de continuar.",
