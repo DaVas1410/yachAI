@@ -62,3 +62,20 @@ def test_build_prompt_returns_two_messages():
     assert len(messages) == 2
     assert messages[0]["role"] == "system"
     assert messages[1]["role"] == "user"
+
+
+# ── embedding ────────────────────────────────────────────────────────────────
+
+from unittest.mock import MagicMock, patch
+import numpy as np
+
+
+@pytest.mark.asyncio
+async def test_get_embedding_returns_768_dims():
+    mock_model = MagicMock()
+    mock_model.encode.return_value = np.random.rand(1, 768).astype(np.float32)
+    with patch("app.services.ingestion._get_embed_model", return_value=mock_model):
+        from app.services.ingestion import get_embedding
+        result = await get_embedding("reglamento de evaluaciones")
+    assert len(result) == 768
+    assert all(isinstance(x, float) for x in result)

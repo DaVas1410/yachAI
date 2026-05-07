@@ -1,9 +1,12 @@
 import json
+import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.database import AsyncSessionLocal
 from app.services.rag import stream_response
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -32,6 +35,7 @@ async def chat_ws(websocket: WebSocket):
                     async for chunk in stream_response(db, query):
                         await websocket.send_json(chunk)
             except Exception:
+                logger.exception("Error al procesar la consulta")
                 await websocket.send_json({"type": "error", "content": "Error al procesar la consulta."})
 
     except WebSocketDisconnect:
